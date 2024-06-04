@@ -4,9 +4,9 @@ use std::default;
 use bevy::{math::{ivec2, vec2}, prelude::*, render::{primitives, render_resource::{AsBindGroup, ShaderRef}}, sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle}};
 use iyes_perf_ui::{PerfUiCompleteBundle, PerfUiPlugin};
 
-const TILESIZE : f32 = 32.;
-const TILE_PER_CHUNK : i8 = 32;
-const TILE_AREA_PER_CHUNK : usize = 1024;
+const TILESIZE : f32 = 16.;
+const TILE_PER_CHUNK : i8 = 16;
+const TILE_AREA_PER_CHUNK : usize = 256;
 const X_CHUNKS : i16 = 20;
 const Y_CHUNKS : i16 = 20;
 
@@ -49,7 +49,7 @@ fn main() {
 
 fn setup_camera(mut commands: Commands){
     commands.spawn((Camera2dBundle {
-        transform : Transform::from_scale(Vec3::splat(12.)),
+        transform : Transform::from_scale(Vec3::splat(0.75)),
         ..Default::default()
     }));
     commands.spawn(PerfUiCompleteBundle::default());
@@ -112,19 +112,23 @@ fn create_chunk_system(
 ){
     for i in 0..X_CHUNKS{
         for j in 0..Y_CHUNKS{
-            let chunkTransform = Transform::from_xyz((i as f32 * TILE_PER_CHUNK as f32 * TILESIZE) as f32, (j as f32 * TILE_PER_CHUNK as f32 * TILESIZE) as f32, 0.);
+            let chunk_transform = Transform::from_xyz((i as f32 * TILE_PER_CHUNK as f32 * TILESIZE) as f32, (j as f32 * TILE_PER_CHUNK as f32 * TILESIZE) as f32, 0.);
+            let chunk = Chunk::empty(i,j);
+            let mut tile_data: [i32; TILE_AREA_PER_CHUNK] = [0 ; TILE_AREA_PER_CHUNK];
+            for i in 0..TILE_AREA_PER_CHUNK{
+                tile_data[i] = chunk.tile_data[i].block_id as i32;
+            }
             commands.spawn((
                 Name::new("Chunk"),
                 ChunkBundle {
-                    chunk: Chunk::empty(i,j),
+                    chunk: chunk,
                     //spacial: SpatialBundle::from_transform(chunkTransform)
-                    
                 },
                 MaterialMesh2dBundle {
                     mesh: meshes.add(Rectangle::default()).into(),
-                    transform: chunkTransform.with_scale(Vec3::splat(TILESIZE * TILE_PER_CHUNK as f32)),
+                    transform: chunk_transform.with_scale(Vec3::splat(TILESIZE * TILE_PER_CHUNK as f32)),
                     material: materials.add(ChunkMaterial {
-                        color: Color::WHITE,
+                        tile_data : tile_data,
                         color_texture : Some(asset_server.load("textures/blocks/blocks.png"))
                     }),
                     ..default()
@@ -160,8 +164,9 @@ fn move_camera_system(mut query: Query<(&mut Transform), With<Camera2d>>, keyboa
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 struct ChunkMaterial {
-    #[uniform(0)]
-    color: Color,
+
+    #[storage(0)]
+    tile_data: [i32;TILE_AREA_PER_CHUNK],
     #[texture(1)]
     #[sampler(2)]
     color_texture: Option<Handle<Image>>,
